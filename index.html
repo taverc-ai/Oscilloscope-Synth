@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Wave Visualizer Synthesizer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: #222;
+            font-family: Arial, Helvetica, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-content: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .synth-container {
+            width: 800px;
+            background-color: #d1d5d8;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* TOP SECTION */
+        .top-panel {
+            display: flex;
+            background-color: #bcbec0;
+            border-radius: 8px;
+            padding: 10px;
+            gap: 15px;
+            height: 220px;
+        }
+
+        /* LEFT CONTROLS */
+        .controls-left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-weight: bold;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-row input[type=range] {
+            width: 100px;
+        }
+
+        /* CENTER CANVAS (OSCILLOSCOPE) */
+        .canvas-container {
+            flex: 2;
+            background-color: #50a38b;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #3d7e6b;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* VOLUME SECTION */
+        .volume-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-weight: bold;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .volume-panel input[type=range] {
+            writing-mode: bt-lr; /* IE/Edge */
+            appearance: slider-vertical; /* Webkit */
+            width: 15px;
+            height: 140px;
+            margin-top: 10px;
+        }
+
+        /* RIGHT WIDGET PANEL */
+        .widget-panel {
+            flex: 1;
+            background-color: #000;
+            color: #fff;
+            border-radius: 6px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .widget-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ccc;
+        }
+
+        .wave-button {
+            width: 40px;
+            height: 60px;
+            background-color: #eaeaea;
+            border-radius: 10px;
+            cursor: pointer;
+            border: none;
+            box-shadow: inset 0 -4px 0 #999;
+            position: relative;
+            transition: all 0.1s ease;
+        }
+
+        .wave-button.active {
+            background-color: #4cd964;
+            box-shadow: inset 0 4px 0 #2e8b39;
+            transform: translateY(2px);
+        }
+
+        .wave-button::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            background-color: #666;
+            border-radius: 50%;
+        }
+
+        .widget-display {
+            color: #00ff66;
+            font-family: monospace;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .frequency-control {
+            width: 100%;
+            text-align: center;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .frequency-control input {
+            width: 90%;
+        }
+
+        /* KEYBOARD SECTION */
+        .keyboard {
+            display: flex;
+            height: 220px;
+            margin-top: 15px;
+            position: relative;
+            background-color: #111;
+            padding: 5px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .key {
+            position: relative;
+            cursor: pointer;
+            border-radius: 0 0 5px 5px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 10px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #888;
+        }
+
+        .key.white {
+            flex: 1;
+            background: linear-gradient(to bottom, #fff 0%, #eee 100%);
+            border: 1px solid #ccc;
+            margin: 0 2px;
+            z-index: 1;
+            height: 100%;
+        }
+
+        .key.white.active {
+            background: #ddd;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        .key.black {
+            width: 6%;
+            height: 60%;
+            background: linear-gradient(to bottom, #333 0%, #000 100%);
+            margin-left: -3%;
+            margin-right: -3%;
+            z-index: 2;
+            color: #fff;
+            border-radius: 0 0 3px 3px;
+        }
+
+        .key.black.active {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div class="synth-container">
+    <!-- TOP CONTROLS AND DISPLAY -->
+    <div class="top-panel">
+        <div class="controls-left">
+            <div class="control-row">
+                <label>Square</label>
+                <input type="range" class="wave-slider" id="squareVol" min="0" max="1" step="0.01" value="0">
+            </div>
+            <div class="control-row">
+                <label>Sine</label>
+                <input type="range" class="wave-slider" id="sineVol" min="0" max="1" step="0.01" value="1">
+            </div>
+            <div class="control-row">
+                <label>Sawtooth</label>
+                <input type="range" class="wave-slider" id="sawVol" min="0" max="1" step="0.01" value="0">
+            </div>
+            <div class="control-row">
+                <label>Triangle</label>
+                <input type="range" class="wave-slider" id="triVol" min="0" max="1" step="0.01" value="0">
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="oscilloscope"></canvas>
+        </div>
+
+        <div class="volume-panel">
+            <label>Volume</label>
+            <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.7">
+        </div>
+
+        <div class="widget-panel">
+            <div class="widget-title">Play with a wave</div>
+            <button class="wave-button" id="widgetToggle"></button>
+            <div class="widget-display" id="widgetDisplay">----</div>
+            <div class="frequency-control">
+                <div>Frequency</div>
+                <input type="range" id="widgetFreq" min="100" max="1000" value="440">
+            </div>
+        </div>
+    </div>
+
+    <!-- VIRTUAL KEYBOARD -->
+    <div class="keyboard" id="keyboard">
+        <div class="key white" data-note="261.63" data-key="q">Q</div>
+        <div class="key black" data-note="277.18" data-key="2">2</div>
+        <div class="key white" data-note="293.66" data-key="w">W</div>
+        <div class="key black" data-note="311.13" data-key="3">3</div>
+        <div class="key white" data-note="329.63" data-key="e">E</div>
+        <div class="key white" data-note="349.23" data-key="r">R</div>
+        <div class="key black" data-note="369.99" data-key="5">5</div>
+        <div class="key white" data-note="392.00" data-key="t">T</div>
+        <div class="key black" data-note="415.30" data-key="6">6</div>
+        <div class="key white" data-note="440.00" data-key="y">Y</div>
+        <div class="key black" data-note="466.16" data-key="7">7</div>
+        <div class="key white" data-note="493.88" data-key="u">U</div>
+        <div class="key white" data-note="523.25" data-key="i">I</div>
+        <div class="key black" data-note="554.37" data-key="9">9</div>
+        <div class="key white" data-note="587.33" data-key="0">0</div>
+        <div class="key black" data-note="622.25" data-key="-">-</div>
+        <div class="key white" data-note="659.25" data-key="p">P</div>
+        <div class="key white" data-note="698.46" data-key="[">[</div>
+        <div class="key black" data-note="739.99" data-key="=">=</div>
+        <div class="key white" data-note="783.99" data-key="]">]</div>
+    </div>
+</div>
+
+<script>
+    // Audio Context Setup
+    let audioCtx = null;
+    let masterGain = null;
+    
+    const activeOscillators = {};
+    let activeKeyNote = null; // Track the most recent active key frequency
+    let widgetOsc = null;
+    let widgetGain = null;
+    let widgetActive = false;
+
+    // Initialize Web Audio API on first user gesture
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = document.getElementById('masterVol').value;
+            masterGain.connect(audioCtx.destination);
+        }
+    }
+
+    // Helper to get selected waveform type
+    function getActiveWaveform() {
+        const waves = ['squareVol', 'sineVol', 'sawVol', 'triVol'];
+        const types = ['square', 'sine', 'sawtooth', 'triangle'];
+        let maxVal = -1;
+        let selectedType = 'sine';
+
+        waves.forEach((id, idx) => {
+            const val = parseFloat(document.getElementById(id).value);
+            if (val > maxVal && val > 0) {
+                maxVal = val;
+                selectedType = types[idx];
+            }
+        });
+        return selectedType;
+    }
+
+    // Play Note Function
+    function playNote(freq, keyIdentifier) {
+        initAudio();
+        if (activeOscillators[keyIdentifier]) return;
+
+        const osc = audioCtx.createOscillator();
+        const noteGain = audioCtx.createGain();
+
+        osc.type = getActiveWaveform();
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        noteGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+        osc.connect(noteGain);
+        noteGain.connect(masterGain);
+
+        osc.start();
+        activeOscillators[keyIdentifier] = { osc, noteGain, freq };
+        activeKeyNote = freq;
+        
+        drawStaticWave(); // Redraw static display when note starts
+    }
+
+    // Stop Note Function
+    function stopNote(keyIdentifier) {
+        if (activeOscillators[keyIdentifier]) {
+            const { osc, noteGain } = activeOscillators[keyIdentifier];
+            noteGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05);
+            setTimeout(() => {
+                osc.stop();
+                osc.disconnect();
+            }, 50);
+            delete activeOscillators[keyIdentifier];
+
+            const keys = Object.keys(activeOscillators);
+            activeKeyNote = keys.length > 0 ? activeOscillators[keys[keys.length - 1]].freq : null;
+            
+            drawStaticWave(); // Redraw static display when note stops
+        }
+    }
+
+    // Master Volume Control
+    document.getElementById('masterVol').addEventListener('input', (e) => {
+        if (masterGain) masterGain.gain.value = e.target.value;
+        drawStaticWave();
+    });
+
+    // Waveform Sliders Event Listeners
+    document.querySelectorAll('.wave-slider').forEach(slider => {
+        slider.addEventListener('input', () => {
+            drawStaticWave();
+        });
+    });
+
+    // WIDGET LOGIC (Play with a Wave)
+    const widgetBtn = document.getElementById('widgetToggle');
+    const widgetDisplay = document.getElementById('widgetDisplay');
+    const widgetFreqSlider = document.getElementById('widgetFreq');
+
+    widgetBtn.addEventListener('click', () => {
+        initAudio();
+        widgetActive = !widgetActive;
+
+        if (widgetActive) {
+            widgetBtn.classList.add('active');
+            startWidgetWave();
+        } else {
+            widgetBtn.classList.remove('active');
+            stopWidgetWave();
+        }
+        drawStaticWave();
+    });
+
+    function startWidgetWave() {
+        widgetOsc = audioCtx.createOscillator();
+        widgetGain = audioCtx.createGain();
+
+        const freq = parseFloat(widgetFreqSlider.value);
+        const type = getActiveWaveform();
+
+        widgetOsc.type = type;
+        widgetOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        widgetGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+        widgetOsc.connect(widgetGain);
+        widgetGain.connect(masterGain);
+
+        widgetOsc.start();
+        widgetDisplay.innerText = `${type.toUpperCase()}\n${freq} Hz`;
+    }
+
+    function stopWidgetWave() {
+        if (widgetOsc) {
+            widgetOsc.stop();
+            widgetOsc.disconnect();
+            widgetOsc = null;
+        }
+        widgetDisplay.innerText = "----";
+    }
+
+    widgetFreqSlider.addEventListener('input', (e) => {
+        const freq = e.target.value;
+        if (widgetOsc) {
+            widgetOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            const type = widgetOsc.type;
+            widgetDisplay.innerText = `${type.toUpperCase()}\n${freq} Hz`;
+        }
+        drawStaticWave();
+    });
+
+    // MOUSE & TOUCH EVENT LISTENERS FOR KEYBOARD
+    const keys = document.querySelectorAll('.key');
+    keys.forEach(key => {
+        const note = parseFloat(key.dataset.note);
+        const id = key.dataset.key;
+
+        key.addEventListener('mousedown', () => {
+            playNote(note, id);
+            key.classList.add('active');
+        });
+
+        key.addEventListener('mouseup', () => {
+            stopNote(id);
+            key.classList.remove('active');
+        });
+
+        key.addEventListener('mouseleave', () => {
+            stopNote(id);
+            key.classList.remove('active');
+        });
+    });
+
+    // COMPUTER KEYBOARD BINDINGS
+    window.addEventListener('keydown', (e) => {
+        if (e.repeat) return;
+        const keyChar = e.key.toLowerCase();
+        const keyElem = document.querySelector(`.key[data-key="${keyChar}"]`);
+        if (keyElem) {
+            const note = parseFloat(keyElem.dataset.note);
+            playNote(note, keyChar);
+            keyElem.classList.add('active');
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const keyChar = e.key.toLowerCase();
+        const keyElem = document.querySelector(`.key[data-key="${keyChar}"]`);
+        if (keyElem) {
+            stopNote(keyChar);
+            keyElem.classList.remove('active');
+        }
+    });
+
+    // CANVAS STATIC WAVEFORM DRAWING
+    const canvas = document.getElementById('oscilloscope');
+    const canvasCtx = canvas.getContext('2d');
+
+    function drawStaticWave() {
+        const width = canvas.width = canvas.clientWidth;
+        const height = canvas.height = canvas.clientHeight;
+
+        // Background
+        canvasCtx.fillStyle = '#50a38b';
+        canvasCtx.fillRect(0, 0, width, height);
+
+        // Draw Grid Lines
+        canvasCtx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+        canvasCtx.lineWidth = 1;
+
+        const gridSpacing = 20;
+        for (let x = 0; x < width; x += gridSpacing) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(x, 0);
+            canvasCtx.lineTo(x, height);
+            canvasCtx.stroke();
+        }
+        for (let y = 0; y < height; y += gridSpacing) {
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(0, y);
+            canvasCtx.lineTo(width, y);
+            canvasCtx.stroke();
+        }
+
+        // Determine active frequency & volume
+        let currentFreq = 440;
+        let isPlaying = false;
+
+        if (widgetActive) {
+            currentFreq = parseFloat(widgetFreqSlider.value);
+            isPlaying = true;
+        } else if (activeKeyNote !== null) {
+            currentFreq = activeKeyNote;
+            isPlaying = true;
+        }
+
+        const type = getActiveWaveform();
+        const masterVol = parseFloat(document.getElementById('masterVol').value);
+
+        canvasCtx.lineWidth = 2;
+        canvasCtx.strokeStyle = '#00ff66';
+        canvasCtx.beginPath();
+
+        const midY = height / 2;
+
+        // If no sound is active, draw a flat center line
+        if (!isPlaying || masterVol === 0) {
+            canvasCtx.moveTo(0, midY);
+            canvasCtx.lineTo(width, midY);
+            canvasCtx.stroke();
+            return;
+        }
+
+        // Amplitude based on master volume (scaling factor)
+        const amplitude = (height / 2 - 10) * masterVol;
+        
+        // Scale frequency visually so waves look crisp on screen
+        const cyclesOnScreen = (currentFreq / 100); 
+
+        for (let x = 0; x < width; x++) {
+            const t = (x / width) * cyclesOnScreen * 2 * Math.PI;
+            let y = midY;
+
+            if (type === 'sine') {
+                y = midY - Math.sin(t) * amplitude;
+            } else if (type === 'square') {
+                y = midY - (Math.sin(t) >= 0 ? 1 : -1) * amplitude;
+            } else if (type === 'sawtooth') {
+                const phase = (t / (2 * Math.PI)) % 1;
+                y = midY - (2 * phase - 1) * amplitude;
+            } else if (type === 'triangle') {
+                const phase = (t / (2 * Math.PI)) % 1;
+                y = midY - (4 * Math.abs(phase - 0.5) - 1) * amplitude;
+            }
+
+            if (x === 0) {
+                canvasCtx.moveTo(x, y);
+            } else {
+                canvasCtx.lineTo(x, y);
+            }
+        }
+
+        canvasCtx.stroke();
+    }
+
+    // Initial Static Render
+    drawStaticWave();
+    window.addEventListener('resize', drawStaticWave);
+</script>
+</body>
+</html>
